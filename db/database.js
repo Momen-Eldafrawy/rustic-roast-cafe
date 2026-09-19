@@ -1,0 +1,485 @@
+const fs = require('fs');
+const path = require('path');
+const bcrypt = require('bcryptjs');
+
+const DB_FILE = path.join(__dirname, 'store.json');
+
+const INITIAL_DATA = {
+  admin_users: [
+    {
+      id: "admin_1",
+      username: process.env.ADMIN_USERNAME || "admin",
+      password_hash: "$2a$10$tZ264s7q3g/w1e8kKG037.Kspc5Z5n0o3S4Mh3F2h9H3S2D.p36eq",
+      created_at: new Date().toISOString()
+    }
+  ],
+  site_settings: {
+    cafe_name: "Rustic Roast Cafe",
+    logo_url: "images/rustic-roast-cafe-logo.png",
+    primary_color: "#c8a13a",
+    background_color: "#0d130f",
+    footer_copyright: "© 2026 Rustic Roast Cafe, Alexandria.",
+    developer_label: "Website crafted by",
+    developer_logo: "dafro-logo.png"
+  },
+  hero_settings: {
+    title_main: "RUSTIC ROAST",
+    cafe_tag: "CAFE",
+    kicker_en: "BASHAYER EL KHAIR — EL-QABARY",
+    kicker_ar: "بشاير الخير - القباري",
+    tagline_en: "A place to slow down.",
+    tagline_ar: "مكان يستاهل توقّف فيه.",
+    cta_text: "EXPLORE MENU",
+    cta_link: "#menu",
+    bg_image: "images/rustic-roast-cafe-interior-hero.jpg"
+  },
+  about_settings: {
+    eyebrow_en: "The Idea",
+    eyebrow_ar: "الفكرة",
+    title_en: "Coffee is the reason\nyou come. Staying is the point.",
+    title_ar: "القهوة سبب إنك تيجي.\nلكن القعدة هي الهدف.",
+    copy_en_1: "Rustic Roast sits right on the International Coastal Road in El-Qabary — easy to find, easy to fall into. Inside, it's warm wood, deep green velvet, and a hundred small details that make a two-hour coffee feel completely normal.",
+    copy_ar_1: "روستيك روست على الطريق الساحلي الدولي في القباري مباشرة — سهل توصله، وأسهل إنك تنسى الوقت جواه. من جوه، خشب دافي وكنب أخضر مخملي وتفاصيل كتير بتخلي قعدة القهوة تطول من غير ما تحس.",
+    copy_en_2: "No rush, no rules about how long a table is yours. Just good drinks, a rooftop for the nights you want the air, and a room downstairs for the nights you don't.",
+    copy_ar_2: "من غير استعجال، ومن غير قواعد لمدة القعدة. بس مشروبات كويسة، وروف للّيالي اللي عايز فيها هوا، وصالة تحت لليالي التانية.",
+    image_url: "images/rustic-roast-cafe-green-velvet-seating.jpg",
+    image_tag_en: "Green velvet, warm light, and a corner that's easy to stay in.",
+    image_tag_ar: "كنب أخضر مخملي، إضاءة دافية، وركن سهل تقعد فيه.",
+    meta_hours_num: "18",
+    meta_hours_label_en: "Hours a day, open",
+    meta_hours_label_ar: "ساعة فتح يوميًا",
+    meta_floors_num: "2",
+    meta_floors_label_en: "Floors — indoor & rooftop",
+    meta_floors_label_ar: "دورين — صالة وروف",
+    meta_drinks_num: "60+",
+    meta_drinks_label_en: "Drinks on the menu",
+    meta_drinks_label_ar: "صنف على المنيو"
+  },
+  menu_categories: [
+    { id: "cat_hot", key: "hot", en: "Hot Drinks", ar: "مشروبات ساخنة", sort_order: 1, visible: true },
+    { id: "cat_iced", key: "iced", en: "Iced Drinks", ar: "آيس", sort_order: 2, visible: true },
+    { id: "cat_frappe", key: "frappe", en: "Frappé", ar: "فرابيه", sort_order: 3, visible: true },
+    { id: "cat_milkshake", key: "milkshake", en: "Milkshakes", ar: "ميلك شيك", sort_order: 4, visible: true },
+    { id: "cat_waffle", key: "waffle", en: "Waffle", ar: "وافل", sort_order: 5, visible: true },
+    { id: "cat_mojito", key: "mojito", en: "Mojito", ar: "موهيتو", sort_order: 6, visible: true },
+    { id: "cat_juice", key: "juice", en: "Fresh Juices", ar: "عصائر فريش", sort_order: 7, visible: true },
+    { id: "cat_smoothie", key: "smoothie", en: "Smoothies", ar: "سموزي", sort_order: 8, visible: true },
+    { id: "cat_icecream", key: "icecream", en: "Ice Cream", ar: "آيس كريم", sort_order: 9, visible: true },
+    { id: "cat_dessert", key: "dessert", en: "Dessert", ar: "ديزرت", sort_order: 10, visible: true },
+    { id: "cat_canz", key: "canz", en: "Canned Drinks", ar: "كانز", sort_order: 11, visible: true },
+    { id: "cat_shisha", key: "shisha", en: "Shisha", ar: "معسل", sort_order: 12, visible: true }
+  ],
+  menu_items: [
+    // Hot Drinks
+    { id: "item_h1", category_key: "hot", name_ar: "شاي احمر", name_en: "Red Tea", price: 25, sort_order: 1, visible: true },
+    { id: "item_h2", category_key: "hot", name_ar: "شاي اخضر", name_en: "Green Tea", price: 30, sort_order: 2, visible: true },
+    { id: "item_h3", category_key: "hot", name_ar: "شاي ذردة", name_en: "Zarda Tea", price: 30, sort_order: 3, visible: true },
+    { id: "item_h4", category_key: "hot", name_ar: "شاي فواكة", name_en: "Fruit Tea", price: 35, sort_order: 4, visible: true },
+    { id: "item_h5", category_key: "hot", name_ar: "شاي كراك", name_en: "Karak Tea", price: 30, sort_order: 5, visible: true },
+    { id: "item_h6", category_key: "hot", name_ar: "قهوة تركي سنجل", name_en: "Single Turkish Coffee", price: 35, sort_order: 6, visible: true },
+    { id: "item_h7", category_key: "hot", name_ar: "قهوة تركي دبل", name_en: "Double Turkish Coffee", price: 45, sort_order: 7, visible: true },
+    { id: "item_h8", category_key: "hot", name_ar: "قهوة حليب", name_en: "Milk Coffee", price: 50, sort_order: 8, visible: true },
+    { id: "item_h9", category_key: "hot", name_ar: "قهوة نوتيلا", name_en: "Nutella Coffee", price: 55, sort_order: 9, visible: true },
+    { id: "item_h10", category_key: "hot", name_ar: "قهوة بندق", name_en: "Hazelnut Coffee", price: 55, sort_order: 10, visible: true },
+    { id: "item_h11", category_key: "hot", name_ar: "قهوة محوج فاتح", name_en: "Light Spiced Coffee", price: 40, sort_order: 11, visible: true },
+    { id: "item_h12", category_key: "hot", name_ar: "قهوة محوج غامق", name_en: "Dark Spiced Coffee", price: 40, sort_order: 12, visible: true },
+    { id: "item_h13", category_key: "hot", name_ar: "قهوة غامق سادة", name_en: "Plain Dark Coffee", price: 40, sort_order: 13, visible: true },
+    { id: "item_h14", category_key: "hot", name_ar: "اعشاب جافة", name_en: "Dry Herbs", price: 30, sort_order: 14, visible: true },
+    { id: "item_h15", category_key: "hot", name_ar: "كوكتيل اعشاب", name_en: "Herbal Cocktail", price: 40, sort_order: 15, visible: true },
+    { id: "item_h16", category_key: "hot", name_ar: "هوت سيدار", name_en: "Hot Cider", price: 30, sort_order: 16, visible: true },
+    { id: "item_h17", category_key: "hot", name_ar: "فيتامين سي", name_en: "Vitamin C Drink", price: 40, sort_order: 17, visible: true },
+    { id: "item_h18", category_key: "hot", name_ar: "اسبريسو سنجل", name_en: "Single Espresso", price: 45, sort_order: 18, visible: true },
+    { id: "item_h19", category_key: "hot", name_ar: "اسبريسو دبل", name_en: "Double Espresso", price: 60, sort_order: 19, visible: true },
+    { id: "item_h20", category_key: "hot", name_ar: "ميكاتو سنجل", name_en: "Single Macchiato", price: 55, sort_order: 20, visible: true },
+    { id: "item_h21", category_key: "hot", name_ar: "ميكاتو دبل", name_en: "Double Macchiato", price: 60, sort_order: 21, visible: true },
+    { id: "item_h22", category_key: "hot", name_ar: "موكا", name_en: "Mocha", price: 75, sort_order: 22, visible: true },
+    { id: "item_h23", category_key: "hot", name_ar: "نسكافيه", name_en: "Nescafe", price: 60, sort_order: 23, visible: true },
+    { id: "item_h24", category_key: "hot", name_ar: "كابتشينو", name_en: "Cappuccino", price: 70, sort_order: 24, visible: true },
+    { id: "item_h25", category_key: "hot", name_ar: "لاتيه", name_en: "Latte", price: 60, sort_order: 25, visible: true },
+    { id: "item_h26", category_key: "hot", name_ar: "فلات وايت", name_en: "Flat White", price: 80, sort_order: 26, visible: true },
+    { id: "item_h27", category_key: "hot", name_ar: "كورتادو", name_en: "Cortado", price: 70, sort_order: 27, visible: true },
+    { id: "item_h28", category_key: "hot", name_ar: "اسبانش لاتيه", name_en: "Spanish Latte", price: 60, sort_order: 28, visible: true },
+    { id: "item_h29", category_key: "hot", name_ar: "هوت شوكولت", name_en: "Hot Chocolate", price: 60, sort_order: 29, visible: true },
+    { id: "item_h30", category_key: "hot", name_ar: "هوت شوكولت اوريو", name_en: "Hot Chocolate Oreo", price: 65, sort_order: 30, visible: true },
+    { id: "item_h31", category_key: "hot", name_ar: "هوت شوكولت نوتيلا", name_en: "Hot Chocolate Nutella", price: 65, sort_order: 31, visible: true },
+    { id: "item_h32", category_key: "hot", name_ar: "هوت شوكولت وايت", name_en: "Hot Chocolate White", price: 65, sort_order: 32, visible: true },
+    { id: "item_h33", category_key: "hot", name_ar: "هوت شوكولت لوتس", name_en: "Hot Chocolate Lotus", price: 65, sort_order: 33, visible: true },
+    { id: "item_h34", category_key: "hot", name_ar: "هوت شوكولت فستق", name_en: "Hot Chocolate Pistachio", price: 70, sort_order: 34, visible: true },
+    
+    // Iced Drinks
+    { id: "item_i1", category_key: "iced", name_ar: "آيس لوتس", name_en: "Iced Lotus", price: 70, sort_order: 1, visible: true },
+    { id: "item_i2", category_key: "iced", name_ar: "آيس تي", name_en: "Iced Tea", price: 50, sort_order: 2, visible: true },
+    { id: "item_i3", category_key: "iced", name_ar: "آيس لاتيه", name_en: "Iced Latte", price: 70, sort_order: 3, visible: true },
+    { id: "item_i4", category_key: "iced", name_ar: "آيس سبانش لاتيه", name_en: "Iced Spanish Latte", price: 70, sort_order: 4, visible: true },
+    { id: "item_i5", category_key: "iced", name_ar: "آيس كابتشينو", name_en: "Iced Cappuccino", price: 75, sort_order: 5, visible: true },
+    { id: "item_i6", category_key: "iced", name_ar: "آيس موكا", name_en: "Iced Mocha", price: 70, sort_order: 6, visible: true },
+    { id: "item_i7", category_key: "iced", name_ar: "آيس نوتيلا", name_en: "Iced Nutella", price: 70, sort_order: 7, visible: true },
+    { id: "item_i8", category_key: "iced", name_ar: "آيس شوكولت", name_en: "Iced Chocolate", price: 70, sort_order: 8, visible: true },
+
+    // Frappe
+    { id: "item_f1", category_key: "frappe", name_ar: "كلاسيك", name_en: "Classic Frappé", price: 75, sort_order: 1, visible: true },
+    { id: "item_f2", category_key: "frappe", name_ar: "نوتيلا", name_en: "Nutella Frappé", price: 80, sort_order: 2, visible: true },
+    { id: "item_f3", category_key: "frappe", name_ar: "شوكولت", name_en: "Chocolate Frappé", price: 75, sort_order: 3, visible: true },
+    { id: "item_f4", category_key: "frappe", name_ar: "فانيليا", name_en: "Vanilla Frappé", price: 75, sort_order: 4, visible: true },
+    { id: "item_f5", category_key: "frappe", name_ar: "كراميل", name_en: "Caramel Frappé", price: 75, sort_order: 5, visible: true },
+    { id: "item_f6", category_key: "frappe", name_ar: "لوتس", name_en: "Lotus Frappé", price: 80, sort_order: 6, visible: true },
+    { id: "item_f7", category_key: "frappe", name_ar: "فستق", name_en: "Pistachio Frappé", price: 80, sort_order: 7, visible: true },
+
+    // Milkshakes
+    { id: "item_m1", category_key: "milkshake", name_ar: "ميلك شيك اوريو", name_en: "Oreo Milkshake", price: 85, sort_order: 1, visible: true },
+    { id: "item_m2", category_key: "milkshake", name_ar: "ميلك شيك بلوبيري", name_en: "Blueberry Milkshake", price: 75, sort_order: 2, visible: true },
+    { id: "item_m3", category_key: "milkshake", name_ar: "ميلك شيك فانيليا", name_en: "Vanilla Milkshake", price: 75, sort_order: 3, visible: true },
+    { id: "item_m4", category_key: "milkshake", name_ar: "ميلك شيك شوكولت", name_en: "Chocolate Milkshake", price: 75, sort_order: 4, visible: true },
+    { id: "item_m5", category_key: "milkshake", name_ar: "ميلك شيك فراولة", name_en: "Strawberry Milkshake", price: 75, sort_order: 5, visible: true },
+    { id: "item_m6", category_key: "milkshake", name_ar: "ميلك شيك مانجو", name_en: "Mango Milkshake", price: 75, sort_order: 6, visible: true },
+    { id: "item_m7", category_key: "milkshake", name_ar: "ميلك شيك مكس بيري", name_en: "Mix Berry Milkshake", price: 75, sort_order: 7, visible: true },
+    { id: "item_m8", category_key: "milkshake", name_ar: "ميلك شيك خوخ", name_en: "Peach Milkshake", price: 75, sort_order: 8, visible: true },
+    { id: "item_m9", category_key: "milkshake", name_ar: "ميلك شيك لوتس", name_en: "Lotus Milkshake", price: 75, sort_order: 9, visible: true },
+
+    // Waffle
+    { id: "item_w1", category_key: "waffle", name_ar: "نوتيلا", name_en: "Nutella Waffle", price: 75, sort_order: 1, visible: true },
+    { id: "item_w2", category_key: "waffle", name_ar: "وايت", name_en: "White Chocolate Waffle", price: 75, sort_order: 2, visible: true },
+    { id: "item_w3", category_key: "waffle", name_ar: "لوتس", name_en: "Lotus Waffle", price: 75, sort_order: 3, visible: true },
+    { id: "item_w4", category_key: "waffle", name_ar: "كراميل", name_en: "Caramel Waffle", price: 75, sort_order: 4, visible: true },
+    { id: "item_w5", category_key: "waffle", name_ar: "فستق", name_en: "Pistachio Waffle", price: 80, sort_order: 5, visible: true },
+    { id: "item_w6", category_key: "waffle", name_ar: "مكس", name_en: "Mix Waffle", price: 90, sort_order: 6, visible: true },
+    { id: "item_w7", category_key: "waffle", name_ar: "فور سيزون", name_en: "Four Season Waffle", price: 90, sort_order: 7, visible: true },
+
+    // Mojito
+    { id: "item_mj1", category_key: "mojito", name_ar: "كلاسيك", name_en: "Classic Mojito", price: 70, sort_order: 1, visible: true },
+    { id: "item_mj2", category_key: "mojito", name_ar: "فروت", name_en: "Fruit Mojito", price: 70, sort_order: 2, visible: true },
+    { id: "item_mj3", category_key: "mojito", name_ar: "توت", name_en: "Berry Mojito", price: 70, sort_order: 3, visible: true },
+    { id: "item_mj4", category_key: "mojito", name_ar: "خوخ", name_en: "Peach Mojito", price: 70, sort_order: 4, visible: true },
+    { id: "item_mj5", category_key: "mojito", name_ar: "فراولة", name_en: "Strawberry Mojito", price: 70, sort_order: 5, visible: true },
+    { id: "item_mj6", category_key: "mojito", name_ar: "كراميل", name_en: "Caramel Mojito", price: 70, sort_order: 6, visible: true },
+
+    // Fresh Juices
+    { id: "item_j1", category_key: "juice", name_ar: "مانجو", name_en: "Mango Juice", price: 70, sort_order: 1, visible: true },
+    { id: "item_j2", category_key: "juice", name_ar: "فراولة", name_en: "Strawberry Juice", price: 70, sort_order: 2, visible: true },
+    { id: "item_j3", category_key: "juice", name_ar: "جوافة", name_en: "Guava Juice", price: 70, sort_order: 3, visible: true },
+    { id: "item_j4", category_key: "juice", name_ar: "برتقال", name_en: "Orange Juice", price: 55, sort_order: 4, visible: true },
+    { id: "item_j5", category_key: "juice", name_ar: "موز", name_en: "Banana Juice", price: 70, sort_order: 5, visible: true },
+    { id: "item_j6", category_key: "juice", name_ar: "كيوي", name_en: "Kiwi Juice", price: 90, sort_order: 6, visible: true },
+    { id: "item_j7", category_key: "juice", name_ar: "بلح", name_en: "Dates Juice", price: 70, sort_order: 7, visible: true },
+    { id: "item_j8", category_key: "juice", name_ar: "بطيخ", name_en: "Watermelon Juice", price: 70, sort_order: 8, visible: true },
+    { id: "item_j9", category_key: "juice", name_ar: "رمان", name_en: "Pomegranate Juice", price: 70, sort_order: 9, visible: true },
+    { id: "item_j10", category_key: "juice", name_ar: "ليمون", name_en: "Lemon Juice", price: 70, sort_order: 10, visible: true },
+    { id: "item_j11", category_key: "juice", name_ar: "ليمون نعناع", name_en: "Lemon Mint Juice", price: 55, sort_order: 11, visible: true },
+    { id: "item_j12", category_key: "juice", name_ar: "زبادي", name_en: "Yogurt Drink", price: 60, sort_order: 12, visible: true },
+    { id: "item_j13", category_key: "juice", name_ar: "زبادي فواكه", name_en: "Fruit Yogurt Drink", price: 70, sort_order: 13, visible: true },
+    { id: "item_j14", category_key: "juice", name_ar: "أفوكادو", name_en: "Avocado Drink", price: 75, sort_order: 14, visible: true },
+    { id: "item_j15", category_key: "juice", name_ar: "عناب ساقع", name_en: "Cold Hibiscus (Ennab)", price: 90, sort_order: 15, visible: true },
+
+    // Smoothies
+    { id: "item_s1", category_key: "smoothie", name_ar: "فراولة", name_en: "Strawberry Smoothie", price: 70, sort_order: 1, visible: true },
+    { id: "item_s2", category_key: "smoothie", name_ar: "مانجو", name_en: "Mango Smoothie", price: 70, sort_order: 2, visible: true },
+    { id: "item_s3", category_key: "smoothie", name_ar: "توت", name_en: "Berry Smoothie", price: 70, sort_order: 3, visible: true },
+    { id: "item_s4", category_key: "smoothie", name_ar: "خوخ", name_en: "Peach Smoothie", price: 70, sort_order: 4, visible: true },
+    { id: "item_s5", category_key: "smoothie", name_ar: "أناناس", name_en: "Pineapple Smoothie", price: 70, sort_order: 5, visible: true },
+    { id: "item_s6", category_key: "smoothie", name_ar: "تفاح", name_en: "Apple Smoothie", price: 70, sort_order: 6, visible: true },
+    { id: "item_s7", category_key: "smoothie", name_ar: "كيوي", name_en: "Kiwi Smoothie", price: 70, sort_order: 7, visible: true },
+    { id: "item_s8", category_key: "smoothie", name_ar: "رمان", name_en: "Pomegranate Smoothie", price: 70, sort_order: 8, visible: true },
+
+    // Ice Cream
+    { id: "item_ic1", category_key: "icecream", name_ar: "1 بولة", name_en: "1 Scoop", price: 15, sort_order: 1, visible: true },
+    { id: "item_ic2", category_key: "icecream", name_ar: "2 بولة", name_en: "2 Scoops", price: 25, sort_order: 2, visible: true },
+    { id: "item_ic3", category_key: "icecream", name_ar: "3 بولة", name_en: "3 Scoops", price: 35, sort_order: 3, visible: true },
+    { id: "item_ic4", category_key: "icecream", name_ar: "4 بولة", name_en: "4 Scoops", price: 50, sort_order: 4, visible: true },
+
+    // Dessert
+    { id: "item_d1", category_key: "dessert", name_ar: "ام علي ساده", name_en: "Plain Om Ali", price: 50, sort_order: 1, visible: true },
+    { id: "item_d2", category_key: "dessert", name_ar: "ام علي مكسرات", name_en: "Nuts Om Ali", price: 70, sort_order: 2, visible: true },
+    { id: "item_d3", category_key: "dessert", name_ar: "ام علي نوتيلا", name_en: "Nutella Om Ali", price: 75, sort_order: 3, visible: true },
+    { id: "item_d4", category_key: "dessert", name_ar: "ام علي لوتس", name_en: "Lotus Om Ali", price: 80, sort_order: 4, visible: true },
+    { id: "item_d5", category_key: "dessert", name_ar: "ام علي اوريو", name_en: "Oreo Om Ali", price: 85, sort_order: 5, visible: true },
+    { id: "item_d6", category_key: "dessert", name_ar: "مولتن كيك", name_en: "Molten Cake", price: 85, sort_order: 6, visible: true },
+    { id: "item_d7", category_key: "dessert", name_ar: "ساده فستق", name_en: "Pistachio Dessert", price: 85, sort_order: 7, visible: true },
+
+    // Canned Drinks
+    { id: "item_c1", category_key: "canz", name_ar: "بيبسي", name_en: "Pepsi", price: 40, sort_order: 1, visible: true },
+    { id: "item_c2", category_key: "canz", name_ar: "سفن", name_en: "7Up", price: 40, sort_order: 2, visible: true },
+    { id: "item_c3", category_key: "canz", name_ar: "كولا", name_en: "Coca Cola", price: 40, sort_order: 3, visible: true },
+    { id: "item_c4", category_key: "canz", name_ar: "بريجل", name_en: "Birell", price: 50, sort_order: 4, visible: true },
+    { id: "item_c5", category_key: "canz", name_ar: "اميستسيل", name_en: "Amstel Zero", price: 50, sort_order: 5, visible: true },
+    { id: "item_c6", category_key: "canz", name_ar: "بربكان", name_en: "Barbican", price: 50, sort_order: 6, visible: true },
+    { id: "item_c7", category_key: "canz", name_ar: "فيروز", name_en: "Fayrouz", price: 50, sort_order: 7, visible: true },
+    { id: "item_c8", category_key: "canz", name_ar: "شويبس", name_en: "Schweppes", price: 50, sort_order: 8, visible: true },
+    { id: "item_c9", category_key: "canz", name_ar: "كوسي", name_en: "Kosi", price: 50, sort_order: 9, visible: true },
+    { id: "item_c10", category_key: "canz", name_ar: "ريدبول", name_en: "Red Bull", price: 65, sort_order: 10, visible: true },
+
+    // Shisha
+    { id: "item_sh1", category_key: "shisha", name_ar: "سلوم", name_en: "Salloum Shisha", price: 20, sort_order: 1, visible: true },
+    { id: "item_sh2", category_key: "shisha", name_ar: "قص", name_en: "Qass Shisha", price: 85, sort_order: 2, visible: true },
+    { id: "item_sh3", category_key: "shisha", name_ar: "فاخر", name_en: "Fakher Shisha", price: 95, sort_order: 3, visible: true },
+    { id: "item_sh4", category_key: "shisha", name_ar: "ميكس", name_en: "Mix Shisha Head", price: 15, sort_order: 4, visible: true },
+    { id: "item_sh5", category_key: "shisha", name_ar: "ليمون طبي", name_en: "Natural Lemon Head", price: 15, sort_order: 5, visible: true }
+  ],
+  gallery_items: [
+    { id: "g_1", image_url: "images/rustic-roast-cafe-rooftop-terrace.jpg", title_en: "Rooftop, after dark", title_ar: "الروف بعد المغرب", grid_class: "g-1", sort_order: 1, visible: true },
+    { id: "g_2", image_url: "images/rustic-roast-cafe-main-room.jpg", title_en: "The main room", title_ar: "الصالة الرئيسية", grid_class: "g-2", sort_order: 2, visible: true },
+    { id: "g_3", image_url: "images/rustic-roast-cafe-cafe-entrance-evening.jpg", title_en: "Evenings by the entrance", title_ar: "المدخل في المساء", grid_class: "g-3", sort_order: 3, visible: true },
+    { id: "g_4", image_url: "images/rustic-roast-cafe-quiet-corner.jpg", title_en: "A quiet corner", title_ar: "ركن هادي", grid_class: "g-4", sort_order: 4, visible: true },
+    { id: "g_5", image_url: "images/rustic-roast-cafe-wifi-comfort.jpg", title_en: "Settle in, WiFi's on", title_ar: "اقعد براحتك، الواي فاي شغال", grid_class: "g-5", sort_order: 5, visible: true },
+    { id: "g_6", image_url: "images/rustic-roast-cafe-fresh-juice-menu.jpg", title_en: "Off the fresh juice list", title_ar: "من قايمة العصائر", grid_class: "g-6", sort_order: 6, visible: true },
+    { id: "g_7", image_url: "images/rustic-roast-cafe-milkshake-menu.jpg", title_en: "From the milkshake menu", title_ar: "من قايمة الميلك شيك", grid_class: "g-7", sort_order: 7, visible: true },
+    { id: "g_8", image_url: "images/rustic-roast-cafe-window-seat-night.jpg", title_en: "Window seat, after dark", title_ar: "طاولة الشباك بالليل", grid_class: "g-8", sort_order: 8, visible: true }
+  ],
+  location_settings: {
+    address_en: "Bashayer El Khair, El-Qabary,\nAlexandria — inside the gas station\non the International Coastal Road.",
+    address_ar: "بشاير الخير، القباري، الإسكندرية —\nجوه محطة البنزين على الطريق\nالساحلي الدولي.",
+    note_en: "Look for the green rounded façade with the neon sign.",
+    note_ar: "دور على الواجهة الخضراء المدورة وعليها النيون.",
+    maps_url: "https://www.google.com/maps?q=31.1605592,29.8875173&z=17&output=embed",
+    directions_url: "https://www.google.com/maps/dir/?api=1&destination=31.1605592,29.8875173&destination_place_id=ChIJ54jMLwDD9RQRxCJyFMxOjoE"
+  },
+  contact_settings: {
+    phone_1: "01062088142",
+    phone_2: "01204100035",
+    whatsapp_1: "01062088142",
+    whatsapp_2: "01204100035",
+    hours_en: "Daily, morning — 2:00 AM",
+    hours_ar: "يوميًا من الصبح لحد 2 بالليل"
+  },
+  social_settings: {
+    tiktok_url: "https://www.tiktok.com/@dafro0",
+    tiktok_handle: "@dafro0"
+  },
+  seo_settings: {
+    page_title: "Rustic Roast Cafe | كافيه في بشاير الخير والقباري - الإسكندرية",
+    meta_description: "Rustic Roast Cafe — كافيه على الطريق الساحلي الدولي في القباري، الإسكندرية. مشروبات ساخنة وباردة، وافل، عصائر طازجة، وآيس كريم. مفتوح يوميًا من الصبح لحد 2 بالليل.",
+    og_title: "Rustic Roast Cafe | كافيه في بشاير الخير والقباري - الإسكندرية",
+    og_description: "Rustic Roast Cafe — كافيه على الطريق الساحلي الدولي في القباري، الإسكندرية. مشروبات ساخنة وباردة، وافل، عصائر طازجة.",
+    og_image: "images/rustic-roast-cafe-interior-hero.jpg",
+    favicon: "favicon.png"
+  },
+  animation_settings: {
+    parallax_enabled: true,
+    zoom_enabled: true,
+    marquee_enabled: true,
+    reveal_enabled: true,
+    intensity: 1.0,
+    reduced_motion: false
+  },
+  section_visibility: {
+    hero: true,
+    marquee: true,
+    about: true,
+    menu: true,
+    gallery: true,
+    location: true,
+    contact: true
+  }
+};
+
+class Database {
+  constructor() {
+    this.data = null;
+    this.init();
+  }
+
+  init() {
+    try {
+      if (!fs.existsSync(path.dirname(DB_FILE))) {
+        fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
+      }
+
+      if (fs.existsSync(DB_FILE)) {
+        const raw = fs.readFileSync(DB_FILE, 'utf8');
+        this.data = JSON.parse(raw);
+        // Ensure default fields if missing
+        this.data = { ...INITIAL_DATA, ...this.data };
+      } else {
+        this.data = INITIAL_DATA;
+        this.save();
+      }
+    } catch (err) {
+      console.error('Failed to initialize database, using memory fallback:', err);
+      this.data = INITIAL_DATA;
+    }
+  }
+
+  save() {
+    try {
+      const tempPath = `${DB_FILE}.tmp`;
+      fs.writeFileSync(tempPath, JSON.stringify(this.data, null, 2), 'utf8');
+      fs.renameSync(tempPath, DB_FILE);
+    } catch (err) {
+      console.error('Error saving database:', err);
+    }
+  }
+
+  // Admin users
+  getAdminUser(username) {
+    return this.data.admin_users.find(u => u.username === username);
+  }
+
+  updateAdminPassword(username, newHash) {
+    const user = this.getAdminUser(username);
+    if (user) {
+      user.password_hash = newHash;
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
+  // Public Content Aggregation
+  getPublicContent() {
+    // Sort categories & items
+    const categories = [...(this.data.menu_categories || [])]
+      .filter(c => c.visible !== false)
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    const items = [...(this.data.menu_items || [])]
+      .filter(i => i.visible !== false)
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    const menu = categories.map(cat => ({
+      key: cat.key,
+      en: cat.en,
+      ar: cat.ar,
+      items: items
+        .filter(i => i.category_key === cat.key)
+        .map(i => ({ id: i.id, name_ar: i.name_ar, name_en: i.name_en, price: i.price }))
+    }));
+
+    const gallery = [...(this.data.gallery_items || [])]
+      .filter(g => g.visible !== false)
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    return {
+      site: this.data.site_settings,
+      hero: this.data.hero_settings,
+      about: this.data.about_settings,
+      menu,
+      gallery,
+      location: this.data.location_settings,
+      contact: this.data.contact_settings,
+      social: this.data.social_settings,
+      seo: this.data.seo_settings,
+      animations: this.data.animation_settings,
+      visibility: this.data.section_visibility
+    };
+  }
+
+  // Full Admin Data Retrieval
+  getAllAdminData() {
+    return { ...this.data };
+  }
+
+  // Update Settings Sections
+  updateSection(sectionName, newSettings) {
+    if (this.data[sectionName] !== undefined) {
+      this.data[sectionName] = { ...this.data[sectionName], ...newSettings };
+      this.save();
+      return this.data[sectionName];
+    }
+    return null;
+  }
+
+  // Menu Category CRUD
+  saveCategory(category) {
+    if (!category.id) {
+      category.id = 'cat_' + Date.now();
+      category.sort_order = (this.data.menu_categories.length + 1);
+      this.data.menu_categories.push(category);
+    } else {
+      const idx = this.data.menu_categories.findIndex(c => c.id === category.id);
+      if (idx !== -1) {
+        this.data.menu_categories[idx] = { ...this.data.menu_categories[idx], ...category };
+      }
+    }
+    this.save();
+    return category;
+  }
+
+  deleteCategory(categoryId) {
+    const cat = this.data.menu_categories.find(c => c.id === categoryId);
+    if (cat) {
+      this.data.menu_categories = this.data.menu_categories.filter(c => c.id !== categoryId);
+      this.data.menu_items = this.data.menu_items.filter(i => i.category_key !== cat.key);
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
+  // Menu Item CRUD
+  saveMenuItem(item) {
+    if (!item.id) {
+      item.id = 'item_' + Date.now();
+      const existingInCat = this.data.menu_items.filter(i => i.category_key === item.category_key);
+      item.sort_order = item.sort_order || (existingInCat.length + 1);
+      if (item.visible === undefined) item.visible = true;
+      this.data.menu_items.push(item);
+    } else {
+      const idx = this.data.menu_items.findIndex(i => i.id === item.id);
+      if (idx !== -1) {
+        this.data.menu_items[idx] = { ...this.data.menu_items[idx], ...item };
+      }
+    }
+    this.save();
+    return item;
+  }
+
+  deleteMenuItem(itemId) {
+    const prevLen = this.data.menu_items.length;
+    this.data.menu_items = this.data.menu_items.filter(i => i.id !== itemId);
+    if (this.data.menu_items.length !== prevLen) {
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
+  reorderMenuItems(categoryKey, orderedIds) {
+    orderedIds.forEach((id, index) => {
+      const item = this.data.menu_items.find(i => i.id === id);
+      if (item) {
+        item.sort_order = index + 1;
+      }
+    });
+    this.save();
+    return true;
+  }
+
+  // Gallery CRUD
+  saveGalleryItem(item) {
+    if (!item.id) {
+      item.id = 'g_' + Date.now();
+      item.sort_order = item.sort_order || (this.data.gallery_items.length + 1);
+      if (item.visible === undefined) item.visible = true;
+      this.data.gallery_items.push(item);
+    } else {
+      const idx = this.data.gallery_items.findIndex(g => g.id === item.id);
+      if (idx !== -1) {
+        this.data.gallery_items[idx] = { ...this.data.gallery_items[idx], ...item };
+      }
+    }
+    this.save();
+    return item;
+  }
+
+  deleteGalleryItem(id) {
+    const prevLen = this.data.gallery_items.length;
+    this.data.gallery_items = this.data.gallery_items.filter(g => g.id !== id);
+    if (this.data.gallery_items.length !== prevLen) {
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
+  reorderGalleryItems(orderedIds) {
+    orderedIds.forEach((id, index) => {
+      const item = this.data.gallery_items.find(g => g.id === id);
+      if (item) {
+        item.sort_order = index + 1;
+      }
+    });
+    this.save();
+    return true;
+  }
+}
+
+module.exports = new Database();
